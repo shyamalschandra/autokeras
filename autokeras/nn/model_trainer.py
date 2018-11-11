@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torchvision import utils as vutils
 from tqdm.autonotebook import tqdm
-
+import pyprind
 from autokeras.constant import Constant
 from autokeras.utils import get_device
 
@@ -120,6 +120,7 @@ class ModelTrainer(ModelTrainerBase):
         self.current_epoch += 1
 
         if self.verbose:
+            """
             progress_bar = tqdm(total=len(loader),
                                 desc='Epoch-'
                                      + str(self.current_epoch)
@@ -130,8 +131,13 @@ class ModelTrainer(ModelTrainerBase):
                                 ncols=100,
                                 position=0,
                                 unit=' batch')
+                                """
+            desc='Epoch-' + str(self.current_epoch) + ', Current Metric - ' + str(self.current_metric_value)
+            # Source inspired by: https://github.com/rasbt/pyprind/blob/master/examples/pyprind_demo.ipynb
+            bar = pyprind.ProgBar(len(loader), track_time=True, title=desc, monitor=True, width=100)
         else:
-            progress_bar = None
+            #progress_bar = None
+            bar = None
 
         for batch_idx, (inputs, targets) in enumerate(deepcopy(loader)):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -142,9 +148,11 @@ class ModelTrainer(ModelTrainerBase):
             self.optimizer.step()
             if self.verbose:
                 if batch_idx % 10 == 0:
-                    progress_bar.update(10)
+                    #progress_bar.update(10)
+                    bar.update(iterations=10)
         if self.verbose:
-            progress_bar.close()
+            #progress_bar.close()
+            bar.stop()
 
     def _test(self):
         self.model.eval()
@@ -202,27 +210,34 @@ class GANModelTrainer(ModelTrainerBase):
         self.optimizer_d = torch.optim.Adam(self.d_model.parameters())
         self.optimizer_g = torch.optim.Adam(self.g_model.parameters())
         if self.verbose:
+
+            '''
             progress_bar = tqdm(total=max_iter_num,
                                 desc='     Model     ',
                                 file=sys.stdout,
                                 ncols=75,
                                 position=1,
                                 unit=' epoch')
+                                '''
+            bar = pyprind.ProgBar(max_iter_num, track_time=True, title='     Model     ', monitor=True, width=75)
         else:
-            progress_bar = None
+            #progress_bar = None
+            bar = None
         for epoch in range(max_iter_num):
             self._train(epoch)
             if self.verbose:
-                progress_bar.update(1)
+                #progress_bar.update(1)
+                bar.update(iterations=1)
         if self.verbose:
-            progress_bar.close()
-
+            #progress_bar.close()
+            bar.stop()
     def _train(self, epoch):
         # put model into train mode
         self.d_model.train()
         # TODO: why?
         cp_loader = deepcopy(self.train_loader)
         if self.verbose:
+            '''
             progress_bar = tqdm(total=len(cp_loader),
                                 desc='Current Epoch',
                                 file=sys.stdout,
@@ -230,8 +245,12 @@ class GANModelTrainer(ModelTrainerBase):
                                 ncols=75,
                                 position=0,
                                 unit=' Batch')
+                                '''
+            desc='Current Epoch'
+            bar = pyprind.ProgBar(len(cp_loader), track_time=True, title=desc, monitor=True, width=75)
         else:
-            progress_bar = None
+            #progress_bar = None
+            bar = None
         real_label = 1
         fake_label = 0
         for batch_idx, inputs in enumerate(cp_loader):
@@ -264,7 +283,8 @@ class GANModelTrainer(ModelTrainerBase):
 
             if self.verbose:
                 if batch_idx % 10 == 0:
-                    progress_bar.update(10)
+                    #progress_bar.update(10)
+                    bar.update(iterations=10)
             if self.outf is not None and batch_idx % 100 == 0:
                 fake = self.g_model(self.sample_noise)
                 vutils.save_image(
@@ -272,8 +292,8 @@ class GANModelTrainer(ModelTrainerBase):
                     '%s/fake_samples_epoch_%03d.png' % (self.outf, epoch),
                     normalize=True)
         if self.verbose:
-            progress_bar.close()
-
+            #progress_bar.close()
+            bar.stop()
 
 class EarlyStop:
     def __init__(self, max_no_improvement_num=Constant.MAX_NO_IMPROVEMENT_NUM, min_loss_dec=Constant.MIN_LOSS_DEC):
